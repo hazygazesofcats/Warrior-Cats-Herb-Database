@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medicine Cat Herb Database</title>
+    <style>
+        :root {
+            --bg-color: #1a1c18;
+            --card-bg: #232621;
+            --text-color: #e2e3dc;
+            --color-herb: #4caf50;
+            --color-travel: #ff9800;
+            --color-poison: #f44336;
+            --color-other: #00bcd4;
+        }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { color: #a4cba1; margin-bottom: 5px; }
+        #searchBar { width: 80%; max-width: 500px; padding: 12px; border-radius: 8px; border: 1px solid #43493e; background: #2d312a; color: white; font-size: 16px; margin-bottom: 20px; }
+        .filter-container { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .filter-btn { background: #2d312a; color: var(--text-color); border: 2px solid transparent; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; text-transform: capitalize; transition: all 0.3s; }
+        .filter-btn.active, .filter-btn:hover { background: #43493e; border-color: #a4cba1; }
+        .database-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border-top: 5px solid gray; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.5); }
+        .card.herb { border-top-color: var(--color-herb); }
+        .card.travel { border-top-color: var(--color-travel); }
+        .card.poison { border-top-color: var(--color-poison); }
+        .card.other { border-top-color: var(--color-other); }
+        .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #000; margin-bottom: 15px; }
+        .badge.herb { background: var(--color-herb); }
+        .badge.travel { background: var(--color-travel); }
+        .badge.poison { background: var(--color-poison); color: white; }
+        .badge.other { background: var(--color-other); }
+        .card h3 { margin: 0 0 15px 0; font-size: 20px; }
+        .card p { font-size: 14px; line-height: 1.5; margin: 8px 0; }
+        .card strong { color: #a4cba1; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 17, 14, 0.9); backdrop-filter: blur(10px); justify-content: center; align-items: center; }
+        .modal-content { background-color: #2a2e27; padding: 0; border-radius: 16px; width: 90%; max-width: 600px; position: relative; box-shadow: 0 15px 40px rgba(0,0,0,0.6); overflow: hidden; border: 2px solid #43493e; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .modal-header { padding: 30px; color: #ffffff; }
+        .modal-content.herb .modal-header { background: linear-gradient(135deg, #2e7d32, #4caf50); }
+        .modal-content.travel .modal-header { background: linear-gradient(135deg, #ef6c00, #ff9800); }
+        .modal-content.poison .modal-header { background: linear-gradient(135deg, #c62828, #f44336); }
+        .modal-content.other .modal-header { background: linear-gradient(135deg, #00838f, #00bcd4); }
+        .modal-header h2 { margin: 5px 0 0 0; font-size: 36px; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.3); color: #ffffff !important; }
+        .modal-body-text { padding: 30px; background: #2a2e27; }
+        .modal-body-text p { font-size: 16px; line-height: 1.6; margin: 18px 0; color: #f1f2ed; }
+        .modal-body-text strong { color: #ffffff; font-size: 17px; display: inline-block; margin-right: 5px; }
+        .close-btn { position: absolute; top: 15px; right: 20px; color: rgba(25, 25, 25, 0.9); font-size: 32px; font-weight: bold; cursor: pointer; transition: all 0.2s; z-index: 1010; background: rgba(255, 255, 255, 0.7); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .close-btn:hover { background: #ffffff; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Clan Herb Database</h1>
+        <p>Fanmade Medicine Cat Reference Guide</p>
+        <input type="text" id="searchBar" placeholder="Search by name, location, or symptom...">
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">All Entries</button>
+            <button class="filter-btn" data-filter="herb">Herbs</button>
+            <button class="filter-btn" data-filter="travel">Travel Herbs</button>
+            <button class="filter-btn" data-filter="poison">Poisons</button>
+            <button class="filter-btn" data-filter="other">Other</button>
+        </div>
+    </header>
+    <main class="database-grid" id="databaseGrid"></main>
+    <div id="fullscreenModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+    <script>
+        const databaseItems = [
+    {
+        "name": "Alder bark",
+        "category": "herb",
+        "description": "Dark gray bark to brownish-gray, fissured with glossy. Young trees have light gray to greenish-gray bark. Branches can sometimes be sticky.",
+        "location": "In the woodlands, such as ThunderClan's and SkyClan's territories. Can be found during the snowy season.",
+        "usage": "Chewed; eases toothaches."
+    },
+    {
+        "name": "Bindweed",
+        "category": "herb",
+        "description": "Blue or white petals with white throat and yellow center. Stems contain green leaves. Grows in long, thick tendrils.",
+        "location": "The forest and lake territories.",
+        "usage": "When combined with sticks, can help mend a broken leg and keep it in-place."
+    },
+    {
+        "name": "Blackberry Leaves",
+        "category": "herb",
+        "description": "Plant itself carries pinkish-white flowers, each flower has five petals and produces one fruit crop a year. Grows in sunny areas. Leaves carry a sharp scent.",
+        "location": "In forested areas.",
+        "usage": "Mixed into a poultice to ease the pain of bee stings."
+    },
+    {
+        "name": "The Blazing Star (TBS)",
+        "category": "herb",
+        "description": "A small yellow flower with five petals that spread out and resemble a star. Has spiky leaves. Also known as smoothstem blazingstar.",
+        "location": "It is found on the side of the Thunderpath, near the pine forest.",
+        "usage": "The Blazing Star is a rare healing herb that is used to cure the early settlers of an unknown disease."
+    },
+    {
+        "name": "Borage",
+        "category": "herb",
+        "description": "Purple flowers with soft, dark green leaves. Has a distinguished smell. The best leaves are typically halfway up the stem, and has a zesty scent to them. Bitter tasting.",
+        "location": "Forestland in the forest territory and lake territory. Along the lake, and the ridge near RiverClan territory.",
+        "usage": "Chewed and eaten. It produces more and better milk. It also brings down fevers. Helps soothe bad bellies and relieves tight chests"
+    },
+    {
+        "name": "Bright-Eye",
+        "category": "herb",
+        "description": "Light pink petals with darker pink in the middles. Smooth green leaves.",
+        "location": "Sunny areas, wooded areas, thickets.",
+        "usage": "Crushed into a poultice mixture. Mix with lovage to help cure coughs."
+    },
+    {
+        "name": "Broom",
+        "category": "herb",
+        "description": "A flowering herb. Shrubs with small leaves and small yellow flowers. Flowers are often solitary, but can also come in pairs.",
+        "location": "Grows in ThunderClan's forest territory. Can be found during the snowy season. WindClan's camp in the forest.",
+        "usage": "Used in poultices that can help broken legs and wounds."
+    },
+    {
+        "name": "Burdock Root",
+        "category": "herb",
+        "description": "Tall-stemmed thistle with a sharp smell and dark leaves. Has a bitter taste. The roots are black.",
+        "location": "It grows in open areas, like by a Thunderpath, the training hollow, and by the stream in ThunderClan's territory.",
+        "usage": "The root is dug up, the soil is washed off, and then it is chewed into a pulp. Soothes and heals rat bites especially if they are infected. Can give cats a bellyache if they eat too much of it. Numbs rat bite to the point a cat cannot feel the pain. Also good for infected paws and other sores, including burns."
+    },
+    {
+        "name": "Catmint / Catnip",
+        "category": "herb",
+        "description": "A tall, soft, leafy, and delicious-smelling plant. Has gray-green leaves, stem is hairy, and has pale purple flowers. Is easily killed by frost. Looks like nettles, but doesn't sting.",
+        "location": "Rarely found in the wild; mostly found in Twoleg gardens. Can specifically be found in the Twolegplace near ThunderClan's territory in the old forest and in the abandoned Twoleg nest. Found in small clumps on each Clan's territory.",
+        "usage": "Best remedy for the deadly greencough, which cats, mainly kits and elders, usually catch in the season of leaf-bare. Can also be used for whitecough. Can be considered dangerous in extremely high dosages."
+    },
+    {
+        "name": "Celandine",
+        "category": "herb",
+        "description": "Yellow flower with four petals. Hairy leaves and stems. The stem is brittle and releases a yellow-orange sap.",
+        "location": "Grows on both ThunderClan and RiverClan's territories, but possibly grows better on ThunderClan land.",
+        "usage": "Crushed into juice and trickled into the eye. Soothes weakened or damaged eyes."
+    },
+    {
+        "name": "Chervil",
+        "category": "herb",
+        "description": "A sweet-smelling plant with large, leafy, fern-like leaves and white flowers. The roots are knobby and brown with an acrid tang.",
+        "location": "Snakerocks in the forest territories, and just outside the medicine den in SkyClan's gorge territory. Found near ThunderClan's camp by the lake. It can also be found in the mountains.",
+        "usage": "Chewed to extract the juice of the leaves for infected wounds or the root for bellyaches caused by nausea. However, it won't treat trapped wind. Can also be used during kitting. The roots are more potent than the leaves."
+    },
+    {
+        "name": "Chickweed",
+        "category": "herb",
+        "description": "Tall, sprawling-stemmed plant with fat, almond-shaped leaves.",
+        "location": "In the forest territories, it grew near Sunningrocks.",
+        "usage": "Treats greencough, though catmint is often preferred."
+    },
+    {
+        "name": "Coltsfoot",
+        "category": "herb",
+        "description": "A flowering plant with yellow or white flowers resembling dandelions. Grows best in newleaf. Has a fragrant, rich scent.",
+        "location": "Grows readily throughout the forest and lake territories, and the mountains",
+        "usage": "Leaves are chewed into a pulp. Eases breathing, kitten-cough, or whitecough."
+    },
+    {
+        "name": "Comfrey Leaves and Root",
+        "category": "herb",
+        "description": "It has large, long leaves, and black fat, knobbly roots. Tangy smell. Resembles catmint.",
+        "location": "Woodlands.",
+        "usage": "Roots and leaves are chewed into a pulp. Paws can also be wrapped in the leaves. Can help for broken bones, soothes wounds, burns, and wrenched claws. Can be used to help with itching or for inflammation on stiff or wrenched joints. Also eases stiffness on muscles when lined in a nest."
+    },
+    {
+        "name": "Dandelion",
+        "category": "herb",
+        "description": "Common yellow-flowered plant with long, hollow stems. After flowering is finished, the flower transforms into fluffy seed heads that are dispersed by the wind.",
+        "location": "Woodlands",
+        "usage": "Its leaves can be chewed to help feverish cats sleep and reduce their fever, and to act like a painkiller.The roots can also be used to help cure the effects of meadow saffron poisoning."
+    },
+    {
+        "name": "Dock",
+        "category": "herb",
+        "description": "Common, dark green, soft, large-leafed with a tangy smell and taste.",
+        "location": "Found readily anywhere, but doesn't grow well in mountains. Grows near nettles.",
+        "usage": "Chewed up and applied to scratches though can sting when being applied. Also can be put in one's nest during sleep. Soothes sore pads. Can be used to help practice healing on Clanmates and to wrap herbs or injured paws."
+    },
+    {
+        "name": "Elder Leaves",
+        "category": "herb",
+        "description": "Leaves from the elder bush. Has a clean tang.",
+        "location": "Can be found in the mountains and in woodland areas.",
+        "usage": "Turned into a poultice. Soothes sprains and wrenched muscles."
+    },
+    {
+        "name": "Fennel",
+        "category": "herb",
+        "description": "Thin, spiky leaves with tiny yellow flowers.",
+        "location": "Found in numerous places, especially on dry soils near the sea/coast and on riverbanks.",
+        "usage": "Stalks are broken and juice is squeezed into the receiver's mouth. Helps pain in the hips."
+    },
+    {
+        "name": "Feverfew",
+        "category": "herb",
+        "description": "Scalloped dark-green leaves with yellow and white flowers. Has a sharp tangy smell and small soft leaves.",
+        "location": "Grows best along the water.",
+        "usage": "Reduces body temperature for cats with fever or chills. Also heals aches and pains, especially good for headaches."
+    },
+    {
+        "name": "Goatweed",
+        "category": "herb",
+        "description": "Plant with ovate leaves. Also known as barrenwort.",
+        "location": "RiverClan territory.",
+        "usage": "Eases grief."
+    },
+    {
+        "name": "Goldenrod",
+        "category": "herb",
+        "description": "A tall plant with bright yellow flowers.",
+        "location": "Grows well on the WindClan moors.",
+        "usage": "Chewed into a poultice. Good for healing and cleaning wounds."
+    },
+    {
+        "name": "Hawkweed",
+        "category": "herb",
+        "description": "Small, coarse, rough green plant with yellow and orange flowers. Has hairy green elliptical leaves.",
+        "location": "Rarely found in ThunderClan's lake territory.",
+        "usage": "Like catmint but not as strong."
+    },
+    {
+        "name": "Horsetail",
+        "category": "herb",
+        "description": "A tall, bristly-stemmed plant with fleshy stalks. Has a pungent and clean smell, and bitter sap.",
+        "location": "Any marshy area.",
+        "usage": "Chewed to a poultice and applied to wounds. Treats infections and stops bleeding for minor wounds. Stings when applied."
+    },
+    {
+        "name": "Juniper Berries",
+        "category": "herb",
+        "description": "Purple-blue berries from the dark green, spiky-leaved juniper bush. Loses potency when they're shriveled up. Has a pungent smell.",
+        "location": "Grows in places that are not wet. Can be found in leaf-bare.",
+        "usage": "Soothes bellyaches, helps with coughs, gives strength, and helps troubled breathing. It is also used to help calm cats. Can be mixed with ragwort or daisy leaves to treat aching joints."
+    },
+    {
+        "name": "Lovage",
+        "category": "herb",
+        "description": "Tall green plant with leaves resembling parsley. Bright yellow flowers.",
+        "location": "Partially shady to full sun areas. Found primarily in Twoleg gardens, rarely found in the wild.",
+        "usage": "If it is mixed with bright-eye, it can help cure coughs. Can be partially toxic."
+    },
+    {
+        "name": "Lungwort",
+        "category": "herb",
+        "description": "Dark green leaves speckled with gray.",
+        "location": "WindClan moor.",
+        "usage": "Cures yellowcough."
+    },
+    {
+        "name": "Mallow",
+        "category": "herb",
+        "description": "Large fuzzy leaves with a sweet, rose-like scent. Purple flowers. Has a bitter taste.",
+        "location": "Grows best near water and best collected at sunhigh when they are dry.",
+        "usage": "Roots and leaves are collected. Soothes bellyache and an option for treating coughs when tansy is limited."
+    },
+    {
+        "name": "Marigold",
+        "category": "herb",
+        "description": "A flowering plant with yellow-bright orange petals. Stems are bright green with a strong and sweet scent or smells like sour nettles. Has a strong taste.",
+        "location": "Near water and bright sunny areas.",
+        "usage": "Petals, leaves, or stems chewed in a poultice. Juice can be used as well. Stops infection and bleeding for minor wounds. Used for inflammation of stiff joints."
+    },
+    {
+        "name": "Dried Oak Leaf",
+        "category": "herb",
+        "description": "Broad and easily recognizable leaves with scalloped edges.",
+        "location": "All over the forest floor and collected in leaf-fall.",
+        "usage": "Dried leaves can be used as a platform to mix salve. Can be chewed to prevent infection, but must be switched to marigold once an infection has set in."
+    },
+    {
+        "name": "Parsley",
+        "category": "herb",
+        "description": "A long-stemmed plant with ragged-edged crinkly leaves. Has a sharp scent and tastes cold and fresh.",
+        "location": "Found in ThunderClan's and ShadowClan's territories.",
+        "usage": "Stops a queen from producing milk if her kits die, she doesn't need milk anymore, or she is producing too much milk. Also used to cure bellyache."
+    },
+    {
+        "name": "Poppy Seeds",
+        "category": "herb",
+        "description": "Tiny, round black seeds that are shaken out of a dried poppy flowerhead.",
+        "location": "All over forest.",
+        "usage": "Can help a cat sleep, soothe shock or distress, or ease pain. Not recommended for nursing queens or in large, prolonged doses."
+    },
+    {
+        "name": "Raspberry Leaves",
+        "category": "herb",
+        "description": "Soft to the touch, but with jagged edges.",
+        "location": "Found on raspberry bushes.",
+        "usage": "Could possibly ease pain or stop bleeding during kitting."
+    },
+    {
+        "name": "Rush",
+        "category": "herb",
+        "description": "A tall dark green plant. It has long narrow leaves and lavender-colored head stalks.",
+        "location": "Grows in moist environments in the forest and lake territories.",
+        "usage": "Used to bind broken bones."
+    },
+    {
+        "name": "Sheep Sorrel",
+        "category": "herb",
+        "description": "A small plant with arrow-shaped green leaves and red or yellow flowers. Has slender stalks.",
+        "location": "On the moorland.",
+        "usage": "Eases fever."
+    },
+    {
+        "name": "Stinging Nettle",
+        "category": "herb",
+        "description": "Large stalks with green, spiny seeds. Grows in patches with stinging barbs.",
+        "location": "All over the lake and forest territories.",
+        "usage": "The leaves must be soaked in water first to remove their sting. The seeds can be chewed to expel poison. The stems and leaves can also be chewed to help with infection, wounds, and decrease swelling. Can be mixed with comfrey to help heal broken bones and sprains."
+    },
+    {
+        "name": "Sweet-sedge",
+        "category": "herb",
+        "description": "Tall, thick green leaves with tiny green flowers. Has a thick, white root. Also known as sweet flag.",
+        "location": "Grows all through leaf-bare. Most common around the RiverClan camp and areas with water.",
+        "usage": "The roots can ease infection."
+    },
+    {
+        "name": "Tansy",
+        "category": "herb",
+        "description": "Small, feathery, pointy, curly dark green leaves and round, yellow flowers. Has a very sweet and strong scent, making it good for disguising a cat's scent. Tastes bitter.",
+        "location": "Can be found near Twolegplaces, and also grows just outside the medicine den in the SkyClan camp. Can also be found in the mountains.",
+        "usage": "Stems are chewed. Cures coughs and soothes throats. Can be used to treat some wounds. Stops cats from getting greencough. May be toxic to cats."
+    },
+    {
+        "name": "Thyme",
+        "category": "herb",
+        "description": "Small green leaves with a woody stem. Has a pungent scent.",
+        "location": "Grows readily in the forest and lake territories. The ones in the Twolegplace have broader, pointed leaves.",
+        "usage": "Leaves can be chewed on to calming anxiety and cats who are in shock. Can also calm cats who breathe their scent in.[307] A stronger variant from Velvet's Twolegplace treats coughs, colds, and indigestion."
+    },
+    {
+        "name": "Tormentil",
+        "category": "herb",
+        "description": "It has a strong, aromatic scent to it and a sharp taste.",
+        "location": "Can be found in the mountains.",
+        "usage": "Its root is chewed tp treat all wounds and extracting poison."
+    },
+    {
+        "name": "Tree Sap",
+        "category": "herb",
+        "description": "A tall, old tree with lush branches. Has dry bark at the bottom and softer near the top. The sap is gathered from the bark near the top, and it has a strong smell like pine, but sweeter.",
+        "location": "In a glade in SkyClan's forest territory.",
+        "usage": "Used to treat coughs when catmint doesn't work."
+    },
+    {
+        "name": "Watermint",
+        "category": "herb",
+        "description": "A tall plant with wide, light green oval-shaped leaves and purple flowers at the end of its spiky stems. Has a sharp scent.",
+        "location": "Usually found in streams or damp earth.",
+        "usage": "It is usually chewed into a pulp, and then eaten to help with bellyaches. Can help with bellyaches caused by trapped wind, but not from nausea. Can be rubbed on a body to hide the scent of death."
+    },
+    {
+        "name": "Wild Garlic",
+        "category": "herb",
+        "description": "Extremely sharp and tangy scent. Grows in patches and has dark green leaves.",
+        "location": "Near the entrance to ThunderClan's forest camp. ShadowClan forest territory, and near the ShadowClan-ThunderClan lake border.",
+        "usage": "One must roll in it. Draws out poison in rat bites to prevent infection."
+    },
+    {
+        "name": "Willow Bark",
+        "category": "herb",
+        "description": "Bark of the willow tree.",
+        "location": "Grows near areas of water.",
+        "usage": "Its bark can be shredded from sticks. Its juice eases pain."
+    },
+    {
+        "name": "Willow Herb",
+        "category": "herb",
+        "description": "A scrubby and hardy plant found in the city.",
+        "location": "Grows in the large city underneath a nest of Thunderpaths.",
+        "usage": "Unknown"
+    },
+    {
+        "name": "Willow Leaves",
+        "category": "herb",
+        "description": "The leaves of the white willow tree are shaped like elongated ovals and are paler than most other willows due to a felt-like covering of fine white hairs on the bottomside of each leaf.",
+        "location": "Grows near areas of water.",
+        "usage": "Chewed into a pulp and eaten. Induces vomiting and is an alternative to yarrow typically given to younger patients."
+    },
+    {
+        "name": "Wintergreen",
+        "category": "herb",
+        "description": "Dark green, elliptical, smooth leaves with an aromatic scent. Pink and white flowers form red edible berries.",
+        "location": "Can be found in the mountains.",
+        "usage": "Treats wounds and some poisons."
+    },
+    {
+        "name": "Wood Sorrel",
+        "category": "herb",
+        "description": "Dark green leaves with a sour smell. A clover-like plant with heart-shaped leaves and five-petaled yellow or white flowers.",
+        "location": "Grows in the forest. Near the ThunderClan-ShadowClan border, and SkyClan's lake territory.",
+        "usage": "Chewed up to a poultice to treat boils and abscesses. Draws out infection and dries up wounds."
+    },
+    {
+        "name": "Yarrow",
+        "category": "herb",
+        "description": "A flowering plant with green, jagged leaves, a tangy scent and a bitter taste. Soft leaves.",
+        "location": "Snakerocks in the forest territories. Just outside the medicine den in the SkyClan gorge territory. By the horseplace and sources of water. Grows in the mountains.",
+        "usage": "When its leaves are ingested, it induces vomiting to expel toxins. An ointment will soften and help heal cracked pads."
+    },
+    {
+        "name": "Burnet",
+        "category": "travel",
+        "description": "Medium green-colored basal leaves. Can occasionally have spikes of purple flowers.",
+        "location": "ThunderClan forest territory. Sunny areas.",
+        "usage": "A traveling herb. The leaves are swallowed. Used to give strength. Good for expecting queens."
+    },
+    {
+        "name": "Chamomile",
+        "category": "travel",
+        "description": "A small, white flower with a large, yellow center.",
+        "location": "Can be found in Twoleg gardens, such as the abandoned Twoleg nest.",
+        "usage": "Strengthens the heart and soother the mind. Also given to traveling cats for strength."
+    },
+    {
+        "name": "Daisy Leaf",
+        "category": "travel",
+        "description": "Dark green, oval shaped leaves with a hairy stem. A bitter taste.",
+        "location": "Found readily in the woodlands and in the mountains.",
+        "usage": "Chewed into a paste. Eases the pain of aching joints, such as back pain. It is also a traveling herb"
+    },
+    {
+        "name": "Lamb's Ear",
+        "category": "travel",
+        "description": "Soft plant with fuzzy green leaves.",
+        "location": "Commonly found in the mountains.",
+        "usage": "Gives a cat strength"
+    },
+    {
+        "name": "Ragweed",
+        "category": "travel",
+        "description": "Tall yellow flowers with a pungent smell.",
+        "location": "In the forest near sources of water.",
+        "usage": "The yellow petals are chewed to give a cat strength."
+    },
+    {
+        "name": "Ragwort Leaves",
+        "category": "travel",
+        "description": "Tall shrub with yellow flowers. Tastes foul to cats.",
+        "location": "Can be found in the forest and lake territories, and the mountains.",
+        "usage": "Can be chewed with juniper berries in a poultice to treat aching joints. Keeps a cat's strength up."
+    },
+    {
+        "name": "Sorrel",
+        "category": "travel",
+        "description": "Similar to daisy, burnet and chamomile, sorrel is used as a traveling herb.",
+        "location": "Can be found near Twoleg nests, and grows just outside the medicine den in the SkyClan camp.",
+        "usage": "Traveling herb. Can also build up appetite and quench thirst."
+    },
+    {
+        "name": "Death/Yewberries",
+        "category": "poison",
+        "description": "Bright scarlet berries from the dark-leaved, poisonous yew bush. A bitter, tangy, overwhelming scent.",
+        "location": "Found in ThunderClan's forest and lake territories",
+        "usage": "Kills a cat within minutes when consumed. Can be used on extremely ill cats to prevent a lingering death. However, if the flesh of the berry is used, with the seed carefully removed, it can cure an infection without death."
+    },
+    {
+        "name": "Foxglove Seeds",
+        "category": "poison",
+        "description": "Tiny, black seeds from the bell-shaped flower of the foxglove plant. Resembles poppy seeds.",
+        "location": "Can be found in forested areas, specifically in woodland clearing and in dappled shade with well-watered soil.",
+        "usage": "They have no apparent medicinal value, unless they are used as a poison. They can easily and quickly cause paralysis, heart failiure, and lead to death."
+    },
+    {
+        "name": "Hollyberries",
+        "category": "poison",
+        "description": "A brickly bush with dark green, spiny leaves that produces poisonous berries.",
+        "location": "Found in ThunderClan's lake territory.",
+        "usage": "Poisonous berries."
+    },
+    {
+        "name": "Meadow Saffron",
+        "category": "poison",
+        "description": "A plant with purple flowers. The leaves die back before the flowers bloom.",
+        "location": "Can be found nearly anywhere.",
+        "usage": "Poisonous. Causes lethargy, vomiting and difficulty breathing."
+    },
+    {
+        "name": "Deadly Nightshade",
+        "category": "poison",
+        "description": "A small shrub with faintly scented, bell-shaped flowers that are purple tinged with green in color. Berries are shiny and black when ripe.",
+        "location": "Can be found in disturbed areas, such as along Thunderpaths and carrionplaces.",
+        "usage": "Poisonous."
+    },
+    {
+        "name": "Water hemlock",
+        "category": "poison",
+        "description": "Green or white flowers with petals in umbrella-shaped clusters. Has tall stalks with serrated green leaves.",
+        "location": "Wet, marshy areas.",
+        "usage": "Causes writhing, pain and foaming at the mouth."
+    },
+    {
+        "name": "Beech Leaves and Nuts",
+        "category": "other",
+        "description": "Has broad, shiny leaves. Can have a variety of leaf colors, but typically are green, yellow, or golden, and can also be smaller or shorter. Can produce nuts with spiky husks.",
+        "location": "In the woodlands, such as ThunderClan territory.",
+        "usage": "Leaves can be used in leaf wraps. Nuts are good for attracting prey."
+    },
+    {
+        "name": "Birch Sap",
+        "category": "other",
+        "description": "A thick, sweet and sticky liquid found in or on birch trees.",
+        "location": "RiverClan's lake territory.",
+        "usage": "Eaten, usage unknown."
+    },
+    {
+        "name": "Catchweed",
+        "category": "other",
+        "description": "A plant with fuzzy green balls on long stems.",
+        "location": "Woodlands.",
+        "usage": "The burrs stops poultices from being rubbed off without hurting the skin."
+    },
+    {
+        "name": "Cob Nuts",
+        "category": "other",
+        "description": "A smooth brown nut with a hard outside shell. A type of hazelnut.",
+        "location": "In forests.",
+        "usage": "Made into ointments. Attracts prey out of their burrows."
+    },
+    {
+        "name": "Cobwebs",
+        "category": "other",
+        "description": "Long, thin, shiny strands spun into a web by spiders. Sticky and have a dusty scent.",
+        "location": "All around the forest. Among the roots of the trees.",
+        "usage": "Sticky mesh to soak up and stop, or slow, the bleeding by pressing them over to the wound. Used to bind broken bones, and to fasten poultices to fur."
+    },
+    {
+        "name": "Heather",
+        "category": "other",
+        "description": "From the heather plant.",
+        "location": "On the moorland.",
+        "usage": "Flowers mixed in herbal mixtures. The nectar makes swallowing easier and sweetens mixtures. Heather blossoms are used to treat aching joints."
+    },
+    {
+        "name": "Honey",
+        "category": "other",
+        "description": "A sweet, golden-covered liquid made by bees.",
+        "location": "In honeycombs or bees nests up in trees",
+        "usage": "Eaten or given by moss soaked in it. Soothes infections. A great remedy for smoke-damaged or sore throats, coughing, helping cats swallow other concoctions, and gives energy. Draws poison from wounds, such as bee stings. Good for binding poultices together. Must be wrapped tightly with leaves to prevent it from spilling."
+    },
+    {
+        "name": "Ivy Leaf",
+        "category": "other",
+        "description": "Long, thick tendrils. Leaves from the ivy vine. Can be poisonous.",
+        "location": "In forested areas. Grows in the ThunderClan lake medicine den and along the rock wall leaning outside of camp.",
+        "usage": "By ShadowClan medicine cats to store other herbs. To bind sticks to broken bones to keep it aligned"
+    },
+    {
+        "name": "Laurel Leaf",
+        "category": "other",
+        "description": "A dense, low-growing bush with smooth leaves.",
+        "location": "ThunderClan territory.",
+        "usage": "Used for herb wraps, such as providing honey to patients."
+    },
+    {
+        "name": "Lavender",
+        "category": "other",
+        "description": "A fragrant flower with purple flowes and linear leaves.",
+        "location": "Grown in Twoleg gardens. Can also be found in sunny spots with sandy or gravelly soil.",
+        "usage": "Placed under a cats nose and is to be inhaled constantly, or rubbed/placed on an animal's body to hide the scent of death. Cures fever and chills and soothes wounds, such as bee stings."
+    },
+    {
+        "name": "Mint",
+        "category": "other",
+        "description": "Downy, serrated leaves ranging from green to purple and yellow in color. Flowers are small and white or purple in color.",
+        "location": "Patch beside ThunderClan nursery in the forest territories.",
+        "usage": "Rubbed on a dead body to hide the scent of death."
+    },
+    {
+        "name": "Moss",
+        "category": "other",
+        "description": "A spongy, soft green shrub, commonly found on trees or marshy areas.",
+        "location": "Abundant in forests and marshy locations. Apprentices collect fresh moss for the medicine cats.",
+        "usage": "Used for bedding for sick cats. Use to soak up fluid, such as mouse bile, honey, or water for ill cats. Soaked moss can be used to apply pressure to stop bleeding."
+    },
+    {
+        "name": "Mouse",
+        "category": "other",
+        "description": "Foul smelling liquid.",
+        "location": "Can be found anywhere mice are present.",
+        "usage": "The liquid is collected from mice, and stored in moss and dabbed on ticks embedded in pelts to kill them."
+    },
+    {
+        "name": "Pinesap",
+        "category": "other",
+        "description": "Sticky goo from pine trees.",
+        "location": "ThunderClan's forest.",
+        "usage": "Can be applied as an adherence for moss. Also protects against infection and deters insects."
+    },
+    {
+        "name": "Rhubarb",
+        "category": "other",
+        "description": "A large, fleshy stalked leaf. The stem is reddish, the leaves are green and are similar to lettuce.",
+        "location": "Rarely found, near ThunderClan's lake territory.",
+        "usage": "Used as a leaf-wrap to store items."
+    },
+    {
+        "name": "Rosemary",
+        "category": "other",
+        "description": "Tall plants with needlelike leaves and a strong, pungent scent.",
+        "location": "Near the ThunderClan warrior's den in the forest territory. In RiverClan's lake territory. Grows near the lakeshore.",
+        "usage": "Put on the pelt of a dead cat to prepare for burial. Hides the scent of death."
+    },
+    {
+        "name": "Stick",
+        "category": "other",
+        "description": "Thin wooden protrusions that grow on and fall from trees.",
+        "location": "Can be found anywhere there are trees.",
+        "usage": "Used to straighten broken limbs to heal. Recoommended for queens giving birth by distracting them from pain. Can be used to carry soaked moss with mouse bile."
+    }
+];
+        const grid = document.getElementById('databaseGrid');
+        const searchBar = document.getElementById('searchBar');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const modal = document.getElementById('fullscreenModal');
+        const modalContent = document.querySelector('.modal-content');
+        const modalBody = document.getElementById('modalBody');
+        const closeBtn = document.querySelector('.close-btn');
+
+        function displayItems(items) {
+            grid.innerHTML = "";
+            items.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = "card " + item.category;
+                card.onclick = () => openFullscreen(item);
+                card.innerHTML = "<span class='badge " + item.category + "'>" + (item.category === 'travel' ? 'travel herb' : item.category) + "</span><h3>" + item.name + "</h3><p><strong>Description:</strong> " + item.description.substring(0, 60) + "...</p><p><strong>Usage:</strong> " + item.usage.substring(0, 60) + "...</p>";
+                grid.appendChild(card);
+            });
+        }
+
+        function openFullscreen(item) {
+            modalContent.className = "modal-content " + item.category;
+            modalBody.innerHTML = "<div class='modal-header'><span class='badge " + item.category + "'>" + (item.category === 'travel' ? 'travel herb' : item.category) + "</span><h2>" + item.name + "</h2></div><div class='modal-body-text'><p><strong>Description:</strong> " + item.description + "</p><p><strong>Location:</strong> " + item.location + "</p><p><strong>Usage/Remedy:</strong> " + item.usage + "</p></div>";
+            modal.style.display = "flex";
+        }
+
+        closeBtn.onclick = () => modal.style.display = "none";
+        window.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
+
+        function filterDatabase() {
+            const searchText = searchBar.value.toLowerCase();
+            const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+            const filtered = databaseItems.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText) || item.location.toLowerCase().includes(searchText) || item.usage.toLowerCase().includes(searchText);
+                const matchesCategory = activeFilter === 'all' || item.category === activeFilter;
+                return matchesSearch && matchesCategory;
+            });
+            displayItems(filtered);
+        }
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                filterDatabase();
+            });
+        });
+
+        searchBar.addEventListener('input', filterDatabase);
+        displayItems(databaseItems);
+    </script>
+</body>
+</html>
